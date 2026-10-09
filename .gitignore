@@ -1,0 +1,16 @@
+target/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+.env
+*.env
+application-local.properties
+application-local.yml
+application-local.yaml
+
+*.log
+
+# Local source archives
+*.zip

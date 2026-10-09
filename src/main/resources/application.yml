@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: paybridge
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/paybridge
+    username: ${DB_USER:paybridge}
+    password: ${DB_PASSWORD:paybridge}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    jpa:
+      open-in-view: false
+      hibernate:
+        ddl-auto: validate
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration,classpath:db/seed-dev
+
+paystack:
+  base-url: https://api.paystack.co
+  secret-key: ${PAYSTACK_SECRET_KEY:}
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"
