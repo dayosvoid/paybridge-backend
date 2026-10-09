@@ -6,7 +6,7 @@ spring:
     name: paybridge
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/paybridge
+    $url: ${DB_URL:jdbc:postgresql://localhost:5432/paybridge}
     username: ${DB_USER:paybridge}
     password: ${DB_PASSWORD:paybridge}
 
