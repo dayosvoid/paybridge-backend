@@ -6,7 +6,7 @@ spring:
     name: paybridge
 
   datasource:
-    $url: ${DB_URL:jdbc:postgresql://localhost:5432/paybridge}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/paybridge}
     username: ${DB_USER:paybridge}
     password: ${DB_PASSWORD:paybridge}
 
@@ -14,13 +14,10 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: true
+    open-in-view: false
     properties:
       hibernate:
         format_sql: true
-    jpa:
-      open-in-view: false
-      hibernate:
-        ddl-auto: validate
 
   flyway:
     enabled: true
