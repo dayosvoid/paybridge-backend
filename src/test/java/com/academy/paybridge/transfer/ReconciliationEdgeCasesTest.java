@@ -56,7 +56,11 @@ class ReconciliationEdgeCasesTest {
 
         @Override
         public AccountName resolveAccount(String accountNumber, String bankCode) {
-            return new AccountName(accountNumber, "Scripted Holder");
+            return new AccountName(
+                    accountNumber,
+                    "Scripted Holder",
+                    "Scripted Bank"
+            );
         }
 
         @Override

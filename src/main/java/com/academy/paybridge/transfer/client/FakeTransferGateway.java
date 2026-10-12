@@ -1,3 +1,4 @@
+
 package com.academy.paybridge.transfer.client;
 
 import com.academy.paybridge.account.api.AccountApi;
@@ -15,11 +16,13 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Offline stand-in for a provider, active unless the "paystack" profile is on.
  *
- * If the destination is a PayBridge account held at the given bank code, the transfer is
- * simulated end to end and the beneficiary is really credited. Otherwise the last digit of the
- * destination decides what happens:
- *   9 -> FAILED now          8 -> PENDING now, SUCCESS when verified
- *   7 -> PENDING now, FAILED when verified          anything else -> SUCCESS now
+ * If the destination is a PayBridge account held at the given bank code, the
+ * transfer is simulated end to end and the beneficiary is really credited.
+ * Otherwise the last digit of the destination decides what happens:
+ * 9 -> FAILED now
+ * 8 -> PENDING now, SUCCESS when verified
+ * 7 -> PENDING now, FAILED when verified
+ * anything else -> SUCCESS now
  */
 @Component
 @Profile("!paystack")
@@ -28,8 +31,12 @@ public class FakeTransferGateway implements TransferGateway {
     private final AccountApi accounts;
     private final LedgerApi ledger;
 
-    /** What this "provider" will answer when asked about a reference later. Lost on restart, like an outage. */
-    private final Map<String, GatewayStatus> verifyAnswers = new ConcurrentHashMap<>();
+    /**
+     * What this fake provider will answer when asked about a reference later.
+     * Lost on restart, like an outage.
+     */
+    private final Map<String, GatewayStatus> verifyAnswers =
+            new ConcurrentHashMap<>();
 
     public FakeTransferGateway(AccountApi accounts, LedgerApi ledger) {
         this.accounts = accounts;
@@ -39,17 +46,38 @@ public class FakeTransferGateway implements TransferGateway {
     @Override
     public AccountName resolveAccount(String accountNumber, String bankCode) {
         if (accountNumber == null || !accountNumber.matches("\\d{10}")) {
-            throw new IllegalArgumentException("Account number must be 10 digits");
+            throw new IllegalArgumentException(
+                    "Account number must be 10 digits");
         }
-        Optional<AccountView> local = accounts.findByNumberAndBank(accountNumber, bankCode);
+
+        if (bankCode == null || bankCode.isBlank()) {
+            throw new IllegalArgumentException("Bank code is required");
+        }
+
+        Optional<AccountView> local =
+                accounts.findByNumberAndBank(accountNumber, bankCode);
+
         if (local.isPresent()) {
-            return new AccountName(accountNumber, local.get().accountName());
+            AccountView account = local.get();
+
+            return new AccountName(
+                    accountNumber,
+                    account.accountName(),
+                    account.bankName()
+            );
         }
+
         if (accounts.exists(accountNumber)) {
             throw new IllegalArgumentException(
-                    "Account " + accountNumber + " is not held at bank " + bankCode);
+                    "Account " + accountNumber
+                            + " is not held at bank " + bankCode);
         }
-        return new AccountName(accountNumber, "FAKE ACCOUNT HOLDER");
+
+        return new AccountName(
+                accountNumber,
+                "FAKE ACCOUNT HOLDER",
+                "FAKE BANK (" + bankCode + ")"
+        );
     }
 
     @Override
@@ -57,31 +85,54 @@ public class FakeTransferGateway implements TransferGateway {
         String reference = instruction.reference();
 
         Optional<AccountView> local =
-                accounts.findByNumberAndBank(instruction.accountNumber(), instruction.bankCode());
+                accounts.findByNumberAndBank(
+                        instruction.accountNumber(),
+                        instruction.bankCode());
+
         if (local.isPresent()) {
-            GatewayResult delivered = deliverToLocalAccount(instruction, local.get());
+            GatewayResult delivered =
+                    deliverToLocalAccount(instruction, local.get());
+
             verifyAnswers.put(reference, delivered.status());
             return delivered;
         }
 
         String providerRef = "FAKE-" + UUID.randomUUID();
-        char last = instruction.accountNumber().charAt(instruction.accountNumber().length() - 1);
+
+        char last = instruction.accountNumber()
+                .charAt(instruction.accountNumber().length() - 1);
+
         return switch (last) {
             case '9' -> {
                 verifyAnswers.put(reference, GatewayStatus.FAILED);
-                yield new GatewayResult(GatewayStatus.FAILED, providerRef, "Fake bank rejected the transfer");
+                yield new GatewayResult(
+                        GatewayStatus.FAILED,
+                        providerRef,
+                        "Fake bank rejected the transfer");
             }
+
             case '8' -> {
                 verifyAnswers.put(reference, GatewayStatus.SUCCESS);
-                yield new GatewayResult(GatewayStatus.PENDING, providerRef, "Fake bank is still processing");
+                yield new GatewayResult(
+                        GatewayStatus.PENDING,
+                        providerRef,
+                        "Fake bank is still processing");
             }
+
             case '7' -> {
                 verifyAnswers.put(reference, GatewayStatus.FAILED);
-                yield new GatewayResult(GatewayStatus.PENDING, providerRef, "Fake bank is still processing");
+                yield new GatewayResult(
+                        GatewayStatus.PENDING,
+                        providerRef,
+                        "Fake bank is still processing");
             }
+
             default -> {
                 verifyAnswers.put(reference, GatewayStatus.SUCCESS);
-                yield new GatewayResult(GatewayStatus.SUCCESS, providerRef, "Fake transfer sent");
+                yield new GatewayResult(
+                        GatewayStatus.SUCCESS,
+                        providerRef,
+                        "Fake transfer sent");
             }
         };
     }
@@ -89,21 +140,42 @@ public class FakeTransferGateway implements TransferGateway {
     @Override
     public GatewayResult verify(String reference) {
         GatewayStatus answer = verifyAnswers.get(reference);
+
         if (answer == null) {
-            return new GatewayResult(GatewayStatus.NOT_FOUND, null, "Fake provider has no record of this reference");
+            return new GatewayResult(
+                    GatewayStatus.NOT_FOUND,
+                    null,
+                    "Fake provider has no record of this reference");
         }
-        return new GatewayResult(answer, "FAKE-VERIFIED", "Fake provider reports " + answer);
+
+        return new GatewayResult(
+                answer,
+                "FAKE-VERIFIED",
+                "Fake provider reports " + answer);
     }
 
-    private GatewayResult deliverToLocalAccount(TransferInstruction instruction, AccountView beneficiary) {
+    private GatewayResult deliverToLocalAccount(
+            TransferInstruction instruction,
+            AccountView beneficiary) {
+
         try {
-            ledger.post(SystemAccounts.SETTLEMENT, beneficiary.accountNumber(),
-                    instruction.amount(), instruction.reference() + "-IN");
-            return new GatewayResult(GatewayStatus.SUCCESS, "SIM-" + instruction.reference(),
+            ledger.post(
+                    SystemAccounts.SETTLEMENT,
+                    beneficiary.accountNumber(),
+                    instruction.amount(),
+                    instruction.reference() + "-IN");
+
+            return new GatewayResult(
+                    GatewayStatus.SUCCESS,
+                    "SIM-" + instruction.reference(),
                     "Credited to " + beneficiary.bankName());
+
         } catch (RuntimeException e) {
-            return new GatewayResult(GatewayStatus.FAILED, null,
-                    "Beneficiary bank rejected the credit: " + e.getMessage());
+            return new GatewayResult(
+                    GatewayStatus.FAILED,
+                    null,
+                    "Beneficiary bank rejected the credit: "
+                            + e.getMessage());
         }
     }
 }

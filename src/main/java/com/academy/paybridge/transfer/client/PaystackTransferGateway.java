@@ -14,6 +14,7 @@ import org.springframework.web.client.RestClient;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.Map;
+import java.util.List;
 
 @Component
 @Profile("paystack")
@@ -49,6 +50,19 @@ public class PaystackTransferGateway implements TransferGateway {
                        @JsonProperty("account_name") String accountName) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
+    record BankListResponse(
+            boolean status,
+            String message,
+            List<BankData> data
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record BankData(
+            String name,
+            String code
+    ) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
     record RecipientResponse(boolean status, String message, RecipientData data) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -77,7 +91,11 @@ public class PaystackTransferGateway implements TransferGateway {
             if (response == null || response.data() == null) {
                 throw new IllegalArgumentException("Could not verify account " + accountNumber);
             }
-            return new AccountName(accountNumber, response.data().accountName());
+            return new AccountName(
+                    accountNumber,
+                    "FAKE ACCOUNT HOLDER",
+                    "FAKE BANK (" + bankCode + ")"
+            );
         } catch (HttpClientErrorException e) {
             throw new IllegalArgumentException(
                     "Could not verify account " + accountNumber + ": " + e.getResponseBodyAsString());

@@ -300,7 +300,9 @@ public class TransferService implements TransferApi {
 
         return new ResolvedAccountView(
                 account.accountNumber(),
-                account.accountName());
+                account.accountName(),
+                account.bankName()
+        );
     }
 
 }
