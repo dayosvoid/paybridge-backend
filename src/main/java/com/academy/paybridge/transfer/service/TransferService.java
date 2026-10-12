@@ -1,14 +1,12 @@
 package com.academy.paybridge.transfer.service;
 
 import com.academy.paybridge.account.api.AccountApi;
+import com.academy.paybridge.transfer.api.ResolvedAccountView;
 import com.academy.paybridge.ledger.api.LedgerApi;
 import com.academy.paybridge.ledger.api.LedgerPosting;
 import com.academy.paybridge.shared.exception.ResourceNotFoundException;
 import com.academy.paybridge.shared.money.Money;
-import com.academy.paybridge.transfer.api.TransferApi;
-import com.academy.paybridge.transfer.api.TransferPage;
-import com.academy.paybridge.transfer.api.TransferRequest;
-import com.academy.paybridge.transfer.api.TransferView;
+import com.academy.paybridge.transfer.api.*;
 import com.academy.paybridge.transfer.client.GatewayResult;
 import com.academy.paybridge.transfer.client.GatewayStatus;
 import com.academy.paybridge.transfer.client.TransferGateway;
@@ -285,4 +283,24 @@ public class TransferService implements TransferApi {
         return new TransferPage(result.getContent().stream().map(this::toView).toList(),
                 page, size, result.getTotalElements(), result.getTotalPages(), result.hasNext());
     }
+
+    @Override
+    public ResolvedAccountView resolveAccount(String accountNumber, String bankCode) {
+        if (accountNumber == null || !accountNumber.matches("\\d{10}")) {
+            throw new IllegalArgumentException(
+                    "Account number must be exactly 10 digits");
+        }
+
+        String normalizedBankCode = normalize(bankCode);
+        if (normalizedBankCode == null) {
+            throw new IllegalArgumentException("Bank code is required");
+        }
+
+        var account = gateway.resolveAccount(accountNumber, normalizedBankCode);
+
+        return new ResolvedAccountView(
+                account.accountNumber(),
+                account.accountName());
+    }
+
 }

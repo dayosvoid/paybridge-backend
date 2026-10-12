@@ -22,7 +22,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InsufficientFundsException.class)
     ResponseEntity<ErrorResponse> insufficientFunds(InsufficientFundsException e) {
-        return body(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+        return body(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
     }
 
     @ExceptionHandler(AccountRestrictedException.class)
