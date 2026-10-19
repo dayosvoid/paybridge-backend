@@ -1,12 +1,15 @@
 
+
 package com.academy.paybridge.transfer.client;
 
+import com.academy.paybridge.shared.accounts.SystemAccounts;
 import com.academy.paybridge.account.api.AccountApi;
 import com.academy.paybridge.account.api.AccountView;
 import com.academy.paybridge.ledger.api.LedgerApi;
-import com.academy.paybridge.transfer.domain.SystemAccounts;
+import com.academy.paybridge.shared.accounts.SystemAccounts;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
+// ... (rest of the file as written in diff)
 
 import java.util.Map;
 import java.util.Optional;

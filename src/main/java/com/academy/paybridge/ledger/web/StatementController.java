@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.academy.paybridge.shared.money.Currency;
+
 import java.time.Instant;
 
 @RestController
@@ -22,11 +24,12 @@ public class StatementController {
 
     @GetMapping
     public StatementPage get(@PathVariable String accountNumber,
+                             @RequestParam(required = false) Currency currency,
                              @RequestParam(required = false) String type,
                              @RequestParam(required = false) Instant from,
                              @RequestParam(required = false) Instant to,
                              @RequestParam(defaultValue = "0") int page,
                              @RequestParam(defaultValue = "20") int size) {
-        return statements.statement(accountNumber, type, from, to, page, size);
+        return statements.statement(accountNumber, currency, type, from, to, page, size);
     }
 }

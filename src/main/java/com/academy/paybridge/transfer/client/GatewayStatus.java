@@ -4,6 +4,12 @@ public enum GatewayStatus {
     SUCCESS,
     PENDING,
     FAILED,
-    /** Only returned by verify: the provider has no record of the reference. */
+    /**
+     * The provider reversed a transfer that had previously succeeded.
+     */
+    REVERSED,
+    /**
+     * Only returned by verify: the provider has no record of this reference.
+     */
     NOT_FOUND
 }

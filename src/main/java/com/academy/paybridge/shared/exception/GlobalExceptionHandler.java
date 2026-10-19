@@ -25,6 +25,11 @@ public class GlobalExceptionHandler {
         return body(HttpStatus.UNPROCESSABLE_CONTENT, e.getMessage());
     }
 
+    @ExceptionHandler(LimitExceededException.class)
+    ResponseEntity<ErrorResponse> limitExceeded(LimitExceededException e) {
+        return body(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());
+    }
+
     @ExceptionHandler(AccountRestrictedException.class)
     ResponseEntity<ErrorResponse> accountRestricted(AccountRestrictedException e) {
         return body(HttpStatus.UNPROCESSABLE_ENTITY, e.getMessage());

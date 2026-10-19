@@ -9,6 +9,7 @@ import com.academy.paybridge.ledger.domain.EntryType;
 import com.academy.paybridge.ledger.domain.LedgerEntry;
 import com.academy.paybridge.ledger.repository.LedgerEntryRepository;
 import com.academy.paybridge.shared.exception.ResourceNotFoundException;
+import com.academy.paybridge.shared.money.Currency;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +44,13 @@ public class StatementService {
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public StatementPage statement(String accountNumber, String type, Instant from, Instant to,
                                    int page, int size) {
+        return statement(accountNumber, null, type, from, to, page, size);
+    }
+
+    /** Statement of one balance of the account number. A null currency means the primary (NGN) balance. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public StatementPage statement(String accountNumber, Currency currency, String type,
+                                   Instant from, Instant to, int page, int size) {
         if (page < 0) {
             throw new IllegalArgumentException("page must be 0 or greater");
         }
@@ -50,8 +58,11 @@ public class StatementService {
             throw new IllegalArgumentException("size must be between 1 and " + MAX_PAGE_SIZE);
         }
         EntryType entryType = parseType(type);
-        AccountView account = accounts.findByNumber(accountNumber)
+        AccountView account = (currency == null
+                ? accounts.findByNumber(accountNumber)
+                : accounts.findByNumber(accountNumber, currency))
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + accountNumber));
+        Currency balanceCurrency = account.currency();
 
         Instant start = from == null ? MIN_TIME : from;
         Instant end = to == null ? MAX_TIME : to;
@@ -63,15 +74,15 @@ public class StatementService {
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
         Page<LedgerEntry> result = entryType == null
-                ? entries.findByAccountNumberAndCreatedAtBetween(accountNumber, start, end, pageable)
-                : entries.findByAccountNumberAndTypeAndCreatedAtBetween(accountNumber, entryType, start, end, pageable);
+                ? entries.findByAccountNumberAndCurrencyAndCreatedAtBetween(accountNumber, balanceCurrency, start, end, pageable)
+                : entries.findByAccountNumberAndCurrencyAndTypeAndCreatedAtBetween(accountNumber, balanceCurrency, entryType, start, end, pageable);
 
         // Balance after the newest entry on this page = current balance minus the net effect
         // of every entry that is newer than this page.
         Long running = null;
         if (!filtered) {
             long newerEntries = (long) page * size;
-            long newerNet = newerEntries == 0 ? 0 : entries.netOfNewest(accountNumber, (int) newerEntries);
+            long newerNet = newerEntries == 0 ? 0 : entries.netOfNewest(accountNumber, balanceCurrency.name(), (int) newerEntries);
             running = account.balanceMinor() - newerNet;
         }
 
@@ -85,7 +96,7 @@ public class StatementService {
                 running = running - signed(e);       // the next (older) entry's balance-after
             }
         }
-        return new StatementPage(accountNumber, account.balanceMinor(), items,
+        return new StatementPage(accountNumber, balanceCurrency, account.balanceMinor(), items,
                 page, size, result.getTotalElements(), result.getTotalPages(), result.hasNext());
     }
 

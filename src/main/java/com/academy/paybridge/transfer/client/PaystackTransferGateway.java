@@ -156,13 +156,14 @@ public class PaystackTransferGateway implements TransferGateway {
 
     /** Paystack's transfer statuses mapped onto ours. Unknown values stay PENDING (safe default). */
     static GatewayStatus mapStatus(String paystackStatus) {
-        if (paystackStatus == null) {
-            return GatewayStatus.PENDING;
-        }
+        if (paystackStatus == null) return GatewayStatus.PENDING;
+
         return switch (paystackStatus.toLowerCase()) {
             case "success" -> GatewayStatus.SUCCESS;
-            case "failed", "reversed", "rejected", "blocked", "abandoned" -> GatewayStatus.FAILED;
-            default -> GatewayStatus.PENDING;   // pending, otp, received, anything new
+            case "reversed" -> GatewayStatus.REVERSED;
+            case "failed", "rejected", "blocked", "abandoned"
+                    -> GatewayStatus.FAILED;
+            default -> GatewayStatus.PENDING;
         };
     }
 

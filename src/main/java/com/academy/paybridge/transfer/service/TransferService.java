@@ -1,6 +1,8 @@
 package com.academy.paybridge.transfer.service;
 
+import com.academy.paybridge.shared.accounts.SystemAccounts;
 import com.academy.paybridge.account.api.AccountApi;
+import com.academy.paybridge.shared.money.Currency;
 import com.academy.paybridge.transfer.api.ResolvedAccountView;
 import com.academy.paybridge.ledger.api.LedgerApi;
 import com.academy.paybridge.ledger.api.LedgerPosting;
@@ -11,7 +13,6 @@ import com.academy.paybridge.transfer.client.GatewayResult;
 import com.academy.paybridge.transfer.client.GatewayStatus;
 import com.academy.paybridge.transfer.client.TransferGateway;
 import com.academy.paybridge.transfer.client.TransferInstruction;
-import com.academy.paybridge.transfer.domain.SystemAccounts;
 import com.academy.paybridge.transfer.domain.Transfer;
 import com.academy.paybridge.transfer.domain.TransferStatus;
 import com.academy.paybridge.transfer.repository.TransferRepository;
@@ -19,13 +20,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.dao.OptimisticLockingFailureException;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -164,25 +166,76 @@ public class TransferService implements TransferApi {
                 .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + reference));
     }
 
+    private GatewayResult verifyWithProvider(String reference) {
+        return gateway.verify(reference);
+    }
+
     @Transactional
-    public void settleFromProvider(String reference, GatewayStatus outcome, String message) {
-        Optional<Transfer> found = transfers.findForUpdateByReference(reference);
+    public void settleFromProvider(
+            String reference,
+            GatewayStatus outcome,
+            String message) {
+
+        Optional<Transfer> found =
+                transfers.findForUpdateByReference(reference);
+
         if (found.isEmpty()) {
-            return;                                  // not ours: acknowledge and ignore
+            return;
         }
+
         Transfer t = found.get();
-        if (t.getStatus() != TransferStatus.PENDING || t.getBankCode() == null) {
-            return;                                  // already concluded: duplicate delivery is a no-op
+
+        if (t.getBankCode() == null) {
+            return;
         }
+
+        // Provider reversed a transfer that had already succeeded.
+        // If it has not been settled yet, reverse the original hold.
+        if (t.getStatus() == TransferStatus.SUCCESS
+                && outcome == GatewayStatus.REVERSED) {
+
+            if (t.getSettlementBatchReference() != null) {
+                log.warn(
+                        "Transfer {} was reversed after settlement; "
+                                + "post-settlement compensation is not yet implemented",
+                        t.getReference()
+                );
+                return;
+            }
+
+            try {
+                ledger.postAll(reversalPostings(t));
+                t.markFailed(message);
+            } catch (RuntimeException e) {
+                log.warn(
+                        "Refund failed for reversed transfer {}: {}",
+                        t.getReference(),
+                        e.getMessage()
+                );
+            }
+
+            return;
+        }
+
+        // Existing handling for transfers awaiting a provider outcome.
+        if (t.getStatus() != TransferStatus.PENDING) {
+            return;
+        }
+
         switch (outcome) {
-            case SUCCESS -> t.markSuccess(t.getProviderReference());
-            case FAILED -> {
+            case SUCCESS ->
+                    t.markSuccess(t.getProviderReference());
+
+            case FAILED, REVERSED -> {
                 try {
                     ledger.postAll(reversalPostings(t));
                     t.markFailed(message);
                 } catch (RuntimeException e) {
-                    log.warn("Reconciliation refund failed for transfer {}: {}",
-                            t.getReference(), e.getMessage());
+                    log.warn(
+                            "Reconciliation refund failed for transfer {}: {}",
+                            t.getReference(),
+                            e.getMessage()
+                    );
 
                     t.markPending(
                             t.getProviderReference(),
@@ -190,10 +243,14 @@ public class TransferService implements TransferApi {
                     );
                 }
             }
-            case PENDING -> { }                      // still not conclusive
+
+            case PENDING, NOT_FOUND -> {
+                // No action.
+            }
         }
     }
 
+//
     /** Customer pays principal to settlement, fee to fee income, tax to tax payable. */
     private List<LedgerPosting> holdPostings(Transfer t) {
         List<LedgerPosting> postings = new ArrayList<>();
@@ -254,7 +311,6 @@ public class TransferService implements TransferApi {
                 t.getFeeMinor(), t.getTaxMinor());
     }
 
-
     @Override
     public TransferPage list(String account, String status, int page, int size) {
         if (page < 0) {
@@ -285,6 +341,37 @@ public class TransferService implements TransferApi {
     }
 
     @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public List<SettlementCandidate> lockSettlementCandidates(Currency currency, Instant succeededBefore, int limit) {
+        if (limit < 1) {
+            throw new IllegalArgumentException("limit must be at least 1");
+        }
+        List<String> references = transfers.findSettlementEligibleReferences(
+                TransferStatus.SUCCESS, currency, succeededBefore, PageRequest.of(0, limit));
+
+        // Lock each row in the same oldest-first order every caller uses, then re-check it: a
+        // concurrent run may have settled it between the query above and the lock.
+        List<SettlementCandidate> locked = new ArrayList<>();
+        for (String reference : references) {
+            transfers.findForUpdateByReference(reference)
+                    .filter(t -> t.isSettlementEligible(currency, succeededBefore))
+                    .ifPresent(t -> locked.add(
+                            new SettlementCandidate(t.getReference(), t.getAmountMinor(), t.getCurrency())));
+        }
+        return locked;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void markSettled(List<String> transferReferences, String batchReference) {
+        for (String reference : transferReferences) {
+            Transfer t = transfers.findForUpdateByReference(reference)
+                    .orElseThrow(() -> new ResourceNotFoundException("Transfer not found: " + reference));
+            t.markSettled(batchReference);
+        }
+    }
+
+    @Override
     public ResolvedAccountView resolveAccount(String accountNumber, String bankCode) {
         if (accountNumber == null || !accountNumber.matches("\\d{10}")) {
             throw new IllegalArgumentException(
@@ -304,5 +391,4 @@ public class TransferService implements TransferApi {
                 account.bankName()
         );
     }
-
 }

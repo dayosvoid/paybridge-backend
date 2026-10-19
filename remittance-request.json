@@ -1,0 +1,7 @@
+{
+  "senderAccountNumber": "0000000001",
+  "beneficiaryAccountNumber": "YOUR_BENEFICIARY_ACCOUNT",
+  "sourceCurrency": "NGN",
+  "destinationCurrency": "USD",
+  "amountMinor": 10000000
+}

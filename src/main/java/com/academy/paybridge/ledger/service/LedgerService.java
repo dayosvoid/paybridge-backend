@@ -2,6 +2,7 @@
 package com.academy.paybridge.ledger.service;
 
 import com.academy.paybridge.account.api.AccountApi;
+import com.academy.paybridge.account.api.AccountRef;
 import com.academy.paybridge.ledger.api.LedgerApi;
 import com.academy.paybridge.ledger.api.LedgerPosting;
 import com.academy.paybridge.ledger.domain.EntryType;
@@ -11,6 +12,7 @@ import com.academy.paybridge.shared.money.Money;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -46,13 +48,15 @@ public class LedgerService implements LedgerApi {
             }
         }
 
-        // Lock every account the batch touches, once, in ascending account-number order.
+        // Lock every balance the batch touches, once, in ascending (account number, currency) order.
         // Because every transaction takes its locks in the same global order, no two
         // transactions can each hold a lock the other is waiting for, so deadlock is impossible.
-        List<String> ordered = postings.stream()
-                .flatMap(p -> Stream.of(p.debitAccount(), p.creditAccount()))
+        List<AccountRef> ordered = postings.stream()
+                .flatMap(p -> Stream.of(
+                        new AccountRef(p.debitAccount(), p.amount().currency()),
+                        new AccountRef(p.creditAccount(), p.amount().currency())))
                 .distinct()
-                .sorted()
+                .sorted(Comparator.comparing(AccountRef::accountNumber).thenComparing(AccountRef::currency))
                 .toList();
         accounts.lockInOrder(ordered);
 

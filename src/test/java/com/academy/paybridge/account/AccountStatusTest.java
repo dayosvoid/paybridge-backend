@@ -27,12 +27,12 @@ class AccountStatusTest {
     }
 
     private void setBalance(String accountNumber, long balanceMinor) {
-        jdbc.update("update accounts set balance_minor = ? where account_number = ?", balanceMinor, accountNumber);
+        jdbc.update("update accounts set balance_minor = ? where account_number = ? and currency = 'NGN'", balanceMinor, accountNumber);
     }
 
     @Test
     void newAccountDefaultsToActiveAtPayBridge() {
-        AccountView view = accounts.open(newCustomer(), NGN, null, null, null);
+        AccountView view = accounts.open(newCustomer(), null, null, null);
 
         assertThat(view.status()).isEqualTo(AccountStatus.ACTIVE);
         assertThat(view.bankCode()).isEqualTo("999");
@@ -41,7 +41,7 @@ class AccountStatusTest {
 
     @Test
     void bankDetailsCanBeSetWhenOpening() {
-        AccountView view = accounts.open(newCustomer(), NGN, "Jane Doe", "058", null);
+        AccountView view = accounts.open(newCustomer(), "Jane Doe", "058", null);
 
         assertThat(view.accountName()).isEqualTo("Jane Doe");
         assertThat(view.bankCode()).isEqualTo("058");
@@ -50,7 +50,7 @@ class AccountStatusTest {
 
     @Test
     void frozenAccountCanReceiveButCannotSend() {
-        AccountView view = accounts.open(newCustomer(), NGN, null, null, null);
+        AccountView view = accounts.open(newCustomer(), null, null, null);
         String number = view.accountNumber();
         setBalance(number, 10_000L);
         accounts.changeStatus(number, AccountStatus.FROZEN);
@@ -64,7 +64,7 @@ class AccountStatusTest {
 
     @Test
     void closingNeedsZeroBalanceAndClosedIsFinal() {
-        AccountView view = accounts.open(newCustomer(), NGN, null, null, null);
+        AccountView view = accounts.open(newCustomer(), null, null, null);
         String number = view.accountNumber();
         setBalance(number, 100L);
 

@@ -1,5 +1,6 @@
 package com.academy.paybridge.transfer;
 
+import org.springframework.transaction.annotation.Transactional;
 import com.academy.paybridge.account.api.AccountApi;
 import com.academy.paybridge.transfer.api.TransferRequest;
 import com.academy.paybridge.transfer.api.TransferView;
@@ -57,5 +58,31 @@ class TransferSettlementTest {
     @Test
     void unknownReferenceIsIgnored() {
         transfers.settleFromProvider("trf-does-not-exist", GatewayStatus.SUCCESS, null);
+    }
+
+    @Test
+    @Transactional
+    void reversedSuccessfulTransferRefundsSenderExactlyOnce() {
+        long before = balance();
+
+        TransferView t = pending();
+
+        // The provider first confirms that the transfer succeeded.
+        transfers.settleFromProvider(t.reference(), GatewayStatus.SUCCESS, null);
+
+        assertThat(transfers.getByReference(t.reference()).status())
+                .isEqualTo("SUCCESS");
+
+        // The provider subsequently reports a reversal.
+        transfers.settleFromProvider(
+                t.reference(), GatewayStatus.REVERSED, "Provider reversed transfer");
+
+        // Deliver the same reversal again.
+        transfers.settleFromProvider(
+                t.reference(), GatewayStatus.REVERSED, "Duplicate reversal");
+
+        assertThat(balance()).isEqualTo(before);
+        assertThat(transfers.getByReference(t.reference()).status())
+                .isEqualTo("FAILED");
     }
 }

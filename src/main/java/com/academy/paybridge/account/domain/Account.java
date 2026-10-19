@@ -8,7 +8,8 @@ import jakarta.persistence.*;
 import org.hibernate.annotations.ColumnDefault;
 
 @Entity
-@Table(name = "accounts")
+@Table(name = "accounts", uniqueConstraints = @UniqueConstraint(
+        name = "uq_accounts_number_currency", columnNames = {"account_number", "currency"}))
 public class Account {
 
     public static final String DEFAULT_BANK_CODE = "999";
@@ -19,7 +20,7 @@ public class Account {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 10)
+    @Column(nullable = false, length = 10)
     private String accountNumber;
 
     @Enumerated(EnumType.STRING)

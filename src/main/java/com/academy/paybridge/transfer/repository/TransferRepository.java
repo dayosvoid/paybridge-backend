@@ -1,6 +1,6 @@
-
 package com.academy.paybridge.transfer.repository;
 
+import com.academy.paybridge.shared.money.Currency;
 import com.academy.paybridge.transfer.domain.Transfer;
 import com.academy.paybridge.transfer.domain.TransferStatus;
 import jakarta.persistence.LockModeType;
@@ -55,6 +55,28 @@ public interface TransferRepository extends JpaRepository<Transfer, Long> {
             """)
     List<Transfer> findStalePending(
             @Param("status") TransferStatus status,
+            @Param("cutoff") Instant cutoff,
+            Pageable pageable
+    );
+
+    /**
+     * Oldest-first references of settlement candidates. Returns references, not entities, on purpose:
+     * the caller then loads each row with {@link #findForUpdateByReference}, so the state it checks
+     * is read after the lock is held, never from a stale persistence context.
+     */
+    @Query("""
+            select t.reference from Transfer t
+            where t.status = :status
+              and t.bankCode is not null
+              and t.currency = :currency
+              and t.settlementBatchReference is null
+              and t.succeededAt is not null
+              and t.succeededAt <= :cutoff
+            order by t.succeededAt asc, t.id asc
+            """)
+    List<String> findSettlementEligibleReferences(
+            @Param("status") TransferStatus status,
+            @Param("currency") Currency currency,
             @Param("cutoff") Instant cutoff,
             Pageable pageable
     );

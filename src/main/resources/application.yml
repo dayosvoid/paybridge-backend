@@ -30,3 +30,7 @@ paystack:
 logging:
   pattern:
     level: "%5p [%X{correlationId:-}]"
+
+paybridge:
+  settlement:
+    enabled: false

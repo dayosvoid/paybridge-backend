@@ -61,10 +61,19 @@ public class PaystackWebhookController {
         switch (event.event()) {
             case "transfer.success" ->
                     transfers.settleFromProvider(event.data().reference(), GatewayStatus.SUCCESS, null);
-            case "transfer.failed", "transfer.reversed" ->
-                    transfers.settleFromProvider(event.data().reference(), GatewayStatus.FAILED,
-                            "Paystack reported " + event.event());
-            default -> { }
+            case "transfer.failed" ->
+                    transfers.settleFromProvider(
+                            event.data().reference(),
+                            GatewayStatus.FAILED,
+                            "Paystack reported transfer.failed"
+                    );
+
+            case "transfer.reversed" ->
+                    transfers.settleFromProvider(
+                            event.data().reference(),
+                            GatewayStatus.REVERSED,
+                            "Paystack reported transfer.reversed"
+                    );
         }
         return ResponseEntity.ok().build();
     }

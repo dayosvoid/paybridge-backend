@@ -26,6 +26,11 @@
         <jackson-bom.version>3.1.7</jackson-bom.version>
         <logback.version>1.5.38</logback.version>
         <log4j2.version>2.25.5</log4j2.version>
+
+        <!-- Tests tagged "postgres" need Docker, so a plain "mvnw test" skips them.
+             Run them with: mvnw test -Ppostgres -->
+        <test.groups></test.groups>
+        <test.excluded.groups>postgres</test.excluded.groups>
     </properties>
 
     <dependencies>
@@ -100,6 +105,12 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- Real PostgreSQL in Docker for the "postgres" tests (version managed by Spring Boot) -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
@@ -113,6 +124,25 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <groups>${test.groups}</groups>
+                    <excludedGroups>${test.excluded.groups}</excludedGroups>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- mvnw test -Ppostgres : runs ONLY the tests tagged "postgres" (needs Docker running) -->
+        <profile>
+            <id>postgres</id>
+            <properties>
+                <test.groups>postgres</test.groups>
+                <test.excluded.groups>none</test.excluded.groups>
+            </properties>
+        </profile>
+    </profiles>
 </project>

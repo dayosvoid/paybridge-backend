@@ -69,6 +69,11 @@ public class ReconciliationService {
                                 "Reconciliation: " + result.message());
                         failed++;
                     }
+                    case REVERSED -> {
+                        transferService.settleFromProvider(reference, GatewayStatus.REVERSED,
+                                "Reconciliation: " + result.message());
+                        failed++;
+                    }
                     case NOT_FOUND -> {
                         long ageSeconds = Duration.between(t.getCreatedAt(), now).getSeconds();
                         if (ageSeconds >= notFoundGraceSeconds) {
