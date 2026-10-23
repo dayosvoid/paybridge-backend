@@ -13,6 +13,14 @@ import java.util.Optional;
 public interface AccountApi {
 
     /**
+     * Opens a customer account: one account number holding an NGN balance and a USD balance.
+     * Returns the NGN (primary) balance. Joins the caller's transaction if there is one.
+     *
+     * @throws IllegalStateException if the customer already has an account
+     */
+    AccountView open(Long customerId, String accountName, String bankCode, String bankName);
+
+    /**
      * The account's primary balance: its NGN balance if it has one, otherwise its only balance.
      * Use the currency overload whenever the currency matters.
      */
@@ -44,3 +52,4 @@ public interface AccountApi {
     /** Locks the balances in the order given. The caller sorts the list. Must be called inside a transaction. */
     void lockInOrder(List<AccountRef> accounts);
 }
+

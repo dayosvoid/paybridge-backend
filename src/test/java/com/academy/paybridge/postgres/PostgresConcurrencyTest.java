@@ -12,6 +12,7 @@ import com.academy.paybridge.remittance.api.OutboundRemittanceRequest;
 import com.academy.paybridge.remittance.api.OutboundRemittanceView;
 import com.academy.paybridge.remittance.api.ProviderQuoteView;
 import com.academy.paybridge.shared.money.Currency;
+import com.academy.paybridge.settlement.api.SettlementApi;
 import com.academy.paybridge.transfer.api.TransferApi;
 import com.academy.paybridge.transfer.api.TransferRequest;
 import com.academy.paybridge.transfer.api.TransferView;
@@ -61,6 +62,7 @@ class PostgresConcurrencyTest {
     @Autowired InboundRemittanceApi inbound;
     @Autowired AccountApi accounts;
     @Autowired JdbcTemplate jdbc;
+    @Autowired SettlementApi settlement;
     @Value("${spring.jpa.hibernate.ddl-auto}") String ddlAuto;
 
     // ---------- helpers ----------
@@ -169,7 +171,31 @@ class PostgresConcurrencyTest {
     void theApplicationRunsOnFlywayMigrationsWithHibernateOnlyValidating() {
         assertThat(ddlAuto).isEqualTo("validate");
         assertThat(jdbc.queryForObject("select max(version::int) from flyway_schema_history where success",
-                Integer.class)).isEqualTo(22);
+                Integer.class)).isEqualTo(24);
+    }
+
+    @Test
+    void concurrentSettlementCallersPostEachPrincipalOnce() throws Exception {
+        String sender = createAccount(1_000_000, 0);
+        var first = transfers.initiate(new TransferRequest(sender, "0123456780", 10000, NGN, "058"), UUID.randomUUID().toString());
+        var second = transfers.initiate(new TransferRequest(sender, "0123456780", 20000, NGN, "058"), UUID.randomUUID().toString());
+        assertThat(first.status()).isEqualTo("SUCCESS");
+        assertThat(second.status()).isEqualTo("SUCCESS");
+        jdbc.update("update transfers set succeeded_at = current_timestamp - interval '2 hours' where reference in (?, ?)",
+                first.reference(), second.reference());
+        long clearingBefore = balance("0000000005", NGN);
+        // The controller and scheduler both enter this exact transactional API.
+        var results = race(times(6, () -> settlement.settleNextBatch(NGN, java.time.Duration.ofHours(1), 50)));
+        assertThat(results).allMatch(Outcome::ok);
+        assertThat(results.stream().filter(r -> r.value().isPresent()).count()).isEqualTo(1);
+        var batch = results.stream().filter(r -> r.value().isPresent()).findFirst().orElseThrow().value().orElseThrow();
+        assertThat(batch.itemCount()).isEqualTo(2);
+        assertThat(batch.totalMinor()).isEqualTo(30000);
+        assertThat(entries(batch.reference())).isEqualTo(2);
+        assertThat(balance("0000000005", NGN)).isEqualTo(clearingBefore + 30000);
+        assertThat(jdbc.queryForObject("select count(*) from settlement_items where transfer_reference in (?, ?)",
+                Long.class, first.reference(), second.reference())).isEqualTo(2);
+        assertThat(settlement.settleNextBatch(NGN, java.time.Duration.ofHours(1), 50)).isEmpty();
     }
 
     // ---------- transfers ----------

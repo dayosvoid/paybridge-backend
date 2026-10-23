@@ -1,6 +1,11 @@
 package com.academy.paybridge.remittance.web;
 
+import com.academy.paybridge.auth.api.AccountAccess;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.academy.paybridge.remittance.api.OutboundRemittanceApi;
+import com.academy.paybridge.remittance.api.OutboundRemittancePage;
 import com.academy.paybridge.remittance.api.OutboundRemittanceRequest;
 import com.academy.paybridge.remittance.api.OutboundRemittanceView;
 import com.academy.paybridge.remittance.api.ProviderQuoteView;
@@ -31,14 +36,17 @@ public class OutboundRemittanceController {
             String beneficiaryBank) {}
 
     private final OutboundRemittanceApi outbound;
+    private final AccountAccess access;
 
-    public OutboundRemittanceController(OutboundRemittanceApi outbound) {
+    public OutboundRemittanceController(OutboundRemittanceApi outbound, AccountAccess access) {
         this.outbound = outbound;
+        this.access = access;
     }
 
     /** Step 1: every provider's offer, best first. Each is stored with an expiry. */
     @PostMapping("/quotes")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("@accountAccess.canUse(authentication, #request.sourceAccount())")
     public List<ProviderQuoteView> quotes(@Valid @RequestBody QuotesRequest request) {
         return outbound.getQuotes(request.sourceAccount(), request.sourceAmountMinor(), request.destinationCurrency());
     }
@@ -47,7 +55,10 @@ public class OutboundRemittanceController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public OutboundRemittanceView send(@RequestHeader("Idempotency-Key") String idempotencyKey,
-                                       @Valid @RequestBody SendRequest request) {
+                                       @Valid @RequestBody SendRequest request,
+                                       Authentication authentication) {
+        // only the owner of the quoted account may send with the quote
+        access.requireUse(authentication, outbound.getQuoteAccountNumber(request.quoteId()));
         return outbound.send(new OutboundRemittanceRequest(request.quoteId(), request.beneficiaryName(),
                 request.beneficiaryAccount(), request.beneficiaryBank()), idempotencyKey);
     }
@@ -58,7 +69,16 @@ public class OutboundRemittanceController {
         return outbound.list(status);
     }
 
+    @GetMapping("/mine")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public OutboundRemittancePage mine(Authentication authentication,
+                                        @RequestParam(defaultValue = "0") int page,
+                                        @RequestParam(defaultValue = "20") int size) {
+        return outbound.listForAccount(access.requireOwnedAccount(authentication), page, size);
+    }
+
     @GetMapping("/{reference}")
+    @PostAuthorize("@accountAccess.canView(authentication, returnObject.sourceAccount())")
     public OutboundRemittanceView get(@PathVariable String reference) {
         return outbound.getByReference(reference);
     }

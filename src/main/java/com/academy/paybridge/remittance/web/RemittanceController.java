@@ -1,5 +1,7 @@
 package com.academy.paybridge.remittance.web;
 
+import org.springframework.security.access.prepost.PostAuthorize;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.academy.paybridge.remittance.api.RemittanceApi;
 import com.academy.paybridge.remittance.api.RemittanceRequest;
 import com.academy.paybridge.remittance.api.RemittanceView;
@@ -19,12 +21,14 @@ public class RemittanceController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("@accountAccess.canUse(authentication, #request.sourceAccount())")
     public RemittanceView create(@RequestHeader("Idempotency-Key") String idempotencyKey,
                                  @Valid @RequestBody RemittanceRequest request) {
         return remittances.initiate(request, idempotencyKey);
     }
 
     @GetMapping("/{reference}")
+    @PostAuthorize("@accountAccess.canView(authentication, returnObject.sourceAccount())")
     public RemittanceView get(@PathVariable String reference) {
         return remittances.getByReference(reference);
     }

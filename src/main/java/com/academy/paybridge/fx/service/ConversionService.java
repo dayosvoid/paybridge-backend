@@ -97,13 +97,13 @@ public class ConversionService implements ConversionApi {
         ConversionQuote quote = quotes.findByQuoteId(quoteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Quote not found: " + quoteId));
         if (conversions.existsByQuoteId(quoteId)) {
-            // The same request may have completed while this request was checking the quote.
+            // Another request may have consumed this quote using the same key.
+            // Check idempotency again before treating it as a different request.
             var winner = conversions.findByIdempotencyKey(idempotencyKey);
             if (winner.isPresent()) {
                 return replay(winner.get(), quoteId);
             }
 
-            // The quote belongs to a different operation.
             throw new IllegalStateException("Quote has already been used: " + quoteId);
         }
         if (quote.isExpired(Instant.now())) {
@@ -135,6 +135,13 @@ public class ConversionService implements ConversionApi {
             log.warn("Conversion {} failed, nothing was moved: {}", conversion.getReference(), e.getMessage());
         }
         return toView(conversions.save(conversion));
+    }
+
+    @Override
+    public String getQuoteAccountNumber(String quoteId) {
+        return quotes.findByQuoteId(quoteId)
+                .map(ConversionQuote::getAccountNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("Quote not found: " + quoteId));
     }
 
     @Override

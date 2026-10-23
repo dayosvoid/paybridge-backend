@@ -12,7 +12,7 @@ class ModuleRulesTest {
 
     private static final List<String> MODULES = List.of(
             "customer", "account", "ledger", "transfer", "fx",
-            "remittance", "settlement", "compliance", "notification");
+            "remittance", "settlement", "compliance", "notification", "auth");
 
     @Test
     void modulesOnlyTouchEachOtherThroughApi() {

@@ -105,6 +105,16 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- Authentication: Spring Security, JWT access tokens validated as an OAuth2 resource server -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
         <!-- Real PostgreSQL in Docker for the "postgres" tests (version managed by Spring Boot) -->
         <dependency>
             <groupId>org.testcontainers</groupId>

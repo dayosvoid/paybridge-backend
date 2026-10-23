@@ -26,4 +26,7 @@ public interface ConversionApi {
     ConversionView convert(String quoteId, String idempotencyKey);
 
     ConversionView getByReference(String reference);
+
+    /** The account number a stored quote was made for. Used to check the caller owns it before converting. */
+    String getQuoteAccountNumber(String quoteId);
 }

@@ -8,4 +8,6 @@ import java.util.List;
 public interface SettlementItemRepository extends JpaRepository<SettlementItem, Long> {
 
     List<SettlementItem> findByBatchId(Long batchId);
+
+    List<SettlementItem> findByBatchIdOrderByIdAsc(Long batchId);
 }

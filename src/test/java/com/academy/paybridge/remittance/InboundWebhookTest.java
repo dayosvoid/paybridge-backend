@@ -3,6 +3,7 @@ package com.academy.paybridge.remittance;
 import com.academy.paybridge.account.api.AccountApi;
 import com.academy.paybridge.remittance.api.InboundPaymentCommand;
 import com.academy.paybridge.remittance.service.WebhookSignature;
+import com.academy.paybridge.support.ApiAuth;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +23,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** The real HTTP endpoint, with signatures. Own in-memory database. */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "spring.datasource.url=jdbc:h2:mem:paybridge-inbound-webhook;LOCK_TIMEOUT=10000")
+        properties = {
+                "spring.datasource.url=jdbc:h2:mem:paybridge-inbound-webhook;LOCK_TIMEOUT=10000",
+                "paybridge.auth.bootstrap-admin.email=ops@example.com",
+                "paybridge.auth.bootstrap-admin.password=an-operator-password"
+        })
 class InboundWebhookTest {
 
     private static final String SECRET = "dev-webhook-secret-change-me";   // the built-in default
@@ -65,9 +70,9 @@ class InboundWebhookTest {
         return http.send(b.build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    /** The operator lists need an ADMIN (the webhook itself needs only its signature). */
     private HttpResponse<String> get(String path) throws Exception {
-        return http.send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build(),
-                HttpResponse.BodyHandlers.ofString());
+        return ApiAuth.get(http, port, path, ApiAuth.login(http, port, "ops@example.com", "an-operator-password"));
     }
 
     private static InboundPaymentCommand payment(String account, long amount) {

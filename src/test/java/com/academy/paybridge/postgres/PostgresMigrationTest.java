@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Tag("postgres")
 class PostgresMigrationTest {
 
-    private static final int LATEST = 22;
+    private static final int LATEST = 24;
 
     private static Flyway flyway(String database, String target) {
         var config = Flyway.configure()

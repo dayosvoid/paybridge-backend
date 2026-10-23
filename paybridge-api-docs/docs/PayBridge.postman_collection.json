@@ -1,0 +1,897 @@
+{
+  "info": {
+    "name": "PayBridge API \u2014 Current Working Tree",
+    "description": "Generated from the current uploaded repository snapshot. Local demo examples only. Read docs/API_REFERENCE.md and docs/API_TESTING_GUIDE.md before use. Webhook signatures are placeholders and must be generated correctly.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "customerEmail",
+      "value": "customer1@example.com"
+    },
+    {
+      "key": "customerPassword",
+      "value": "ChangeMe123!"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "accountNumber",
+      "value": ""
+    },
+    {
+      "key": "destinationAccount",
+      "value": ""
+    },
+    {
+      "key": "transferReference",
+      "value": ""
+    },
+    {
+      "key": "conversionQuoteId",
+      "value": ""
+    },
+    {
+      "key": "conversionReference",
+      "value": ""
+    },
+    {
+      "key": "providerQuoteId",
+      "value": ""
+    },
+    {
+      "key": "outboundReference",
+      "value": ""
+    },
+    {
+      "key": "remittanceReference",
+      "value": ""
+    },
+    {
+      "key": "inboundReference",
+      "value": ""
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "replace-with-new-uuid-per-operation"
+    },
+    {
+      "key": "paystackSignature",
+      "value": "GENERATE_HMAC_SHA512"
+    },
+    {
+      "key": "remittanceSignature",
+      "value": "GENERATE_HMAC_SHA256"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Authentication",
+      "item": [
+        {
+          "name": "Register customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\",\n  \"fullName\": \"Demo Customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "After a successful response, save accessToken, refreshToken, and user.accountNumber into the environment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  pm.environment.set(\"accessToken\", data.accessToken);",
+                  "  pm.environment.set(\"refreshToken\", data.refreshToken);",
+                  "  pm.environment.set(\"accountNumber\", data.user.accountNumber);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Logout refresh-token family",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/logout",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Logout all sessions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/logout-all",
+            "description": ""
+          }
+        },
+        {
+          "name": "Current user",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/me",
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Accounts and statements",
+      "item": [
+        {
+          "name": "Open account (ADMIN only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": 123,\n  \"accountName\": \"Ops Test\",\n  \"bankCode\": \"058\",\n  \"bankName\": \"Demo Bank\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get NGN balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/{{accountNumber}}?currency=NGN",
+            "description": ""
+          }
+        },
+        {
+          "name": "Get all currency balances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/{{accountNumber}}/balances",
+            "description": ""
+          }
+        },
+        {
+          "name": "Change account status (ADMIN only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/{{accountNumber}}/status",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Statement",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/accounts/{{accountNumber}}/transactions?currency=NGN&page=0&size=20",
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Transfers and reconciliation",
+      "item": [
+        {
+          "name": "Create internal transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/transfers",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccount\": \"{{accountNumber}}\",\n  \"destinationAccount\": \"{{destinationAccount}}\",\n  \"amountMinor\": 25000,\n  \"currency\": \"NGN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) { pm.environment.set(\"transferReference\", pm.response.json().reference); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get transfer by reference",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/transfers/{{transferReference}}",
+            "description": ""
+          }
+        },
+        {
+          "name": "List transfers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/transfers?account={{accountNumber}}&status=PENDING&page=0&size=20",
+            "description": ""
+          }
+        },
+        {
+          "name": "Paystack webhook (must sign exact raw bytes)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "x-paystack-signature",
+                "value": "{{paystackSignature}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks/paystack",
+            "description": "Placeholder signature will not validate. Generate HMAC-SHA512 over the exact raw body using the configured Paystack secret.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"transfer.success\",\n  \"data\": {\n    \"reference\": \"{{transferReference}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Run reconciliation (ADMIN only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/reconciliation/run?minAgeSeconds=0&batchSize=50",
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 FX and conversion",
+      "item": [
+        {
+          "name": "Indicative FX quote",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/fx/quote?source=NGN&destination=USD&amountMinor=10000000",
+            "description": ""
+          }
+        },
+        {
+          "name": "Create conversion quote",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/fx/conversions/quotes",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountNumber\": \"{{accountNumber}}\",\n  \"sourceCurrency\": \"NGN\",\n  \"destinationCurrency\": \"USD\",\n  \"sourceAmountMinor\": 10000000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) { pm.environment.set(\"conversionQuoteId\", pm.response.json().quoteId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Execute conversion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/fx/conversions",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{conversionQuoteId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get conversion",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/fx/conversions/{{conversionReference}}",
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Remittance",
+      "item": [
+        {
+          "name": "Create direct remittance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/remittances",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccount\": \"{{accountNumber}}\",\n  \"beneficiaryAccount\": \"US-BENEFICIARY-001\",\n  \"sourceAmountMinor\": 10000000,\n  \"sourceCurrency\": \"NGN\",\n  \"destinationCurrency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get direct remittance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/remittances/{{remittanceReference}}",
+            "description": ""
+          }
+        },
+        {
+          "name": "Get outbound provider quotes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/outbound-remittances/quotes",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccount\": \"{{accountNumber}}\",\n  \"sourceAmountMinor\": 10000000,\n  \"destinationCurrency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201 && pm.response.json().length > 0) { pm.environment.set(\"providerQuoteId\", pm.response.json()[0].quoteId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Send outbound remittance",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/outbound-remittances",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quoteId\": \"{{providerQuoteId}}\",\n  \"beneficiaryName\": \"Demo Beneficiary\",\n  \"beneficiaryAccount\": \"US-ACCOUNT-123\",\n  \"beneficiaryBank\": \"Demo Bank\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) { pm.environment.set(\"outboundReference\", pm.response.json().reference); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List outbound remittances (ADMIN only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/outbound-remittances?status=PENDING",
+            "description": ""
+          }
+        },
+        {
+          "name": "Get outbound remittance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/outbound-remittances/{{outboundReference}}",
+            "description": ""
+          }
+        },
+        {
+          "name": "Reconcile outbound remittance (ADMIN only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/outbound-remittances/{{outboundReference}}/reconcile",
+            "description": ""
+          }
+        },
+        {
+          "name": "List inbound payments (ADMIN only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/inbound-payments?status=UNMATCHED",
+            "description": ""
+          }
+        },
+        {
+          "name": "Get inbound payment (ADMIN only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/inbound-payments/{{inboundReference}}",
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Signed remittance webhooks",
+      "item": [
+        {
+          "name": "Inbound payment webhook (signature is canonical fields)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Signature",
+                "value": "{{remittanceSignature}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks/remittance/inbound",
+            "description": "Placeholder signature will not validate. Sign providerReference|accountNumber|amountMinor|currency using HMAC-SHA256 and the configured remittance webhook secret.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerReference\": \"local-in-001\",\n  \"accountNumber\": \"{{accountNumber}}\",\n  \"amountMinor\": 500000,\n  \"currency\": \"USD\",\n  \"senderName\": \"Example Sender\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Inbound reversal webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Signature",
+                "value": "{{remittanceSignature}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks/remittance/inbound/reversal",
+            "description": "Sign reversal|providerReference with HMAC-SHA256; placeholder signature will not validate.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerReference\": \"local-in-001\",\n  \"reason\": \"Local reversal test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Outbound returned webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "X-Signature",
+                "value": "{{remittanceSignature}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks/remittance/outbound/returned",
+            "description": "Sign returned|reference with HMAC-SHA256; placeholder signature will not validate.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"{{outboundReference}}\",\n  \"reason\": \"Local return test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 KYC / account resolution",
+      "item": [
+        {
+          "name": "Resolve account",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/kyc/account-details?accountNumber=0123456789&bankCode=058",
+            "description": ""
+          }
+        }
+      ]
+    }
+  ]
+}

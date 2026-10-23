@@ -1,5 +1,6 @@
 package com.academy.paybridge.account.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.academy.paybridge.account.api.AccountStatus;
 import com.academy.paybridge.account.api.AccountView;
 import com.academy.paybridge.account.service.AccountService;
@@ -39,6 +40,7 @@ public class AccountController {
 
     /** The NGN balance by default, or the balance in {@code ?currency=USD}. */
     @GetMapping("/{accountNumber}")
+    @PreAuthorize("@accountAccess.canView(authentication, #accountNumber)")
     public AccountView get(@PathVariable String accountNumber,
                            @RequestParam(required = false) Currency currency) {
         return currency == null
@@ -48,6 +50,7 @@ public class AccountController {
 
     /** Every balance held under the account number: NGN and USD. */
     @GetMapping("/{accountNumber}/balances")
+    @PreAuthorize("@accountAccess.canView(authentication, #accountNumber)")
     public List<AccountView> balances(@PathVariable String accountNumber) {
         return service.getAllByNumber(accountNumber);
     }

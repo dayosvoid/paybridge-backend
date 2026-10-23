@@ -4,6 +4,7 @@ import com.academy.paybridge.account.api.AccountApi;
 import com.academy.paybridge.account.api.AccountRef;
 import com.academy.paybridge.ledger.api.LedgerApi;
 import com.academy.paybridge.remittance.api.OutboundRemittanceApi;
+import com.academy.paybridge.remittance.api.OutboundRemittancePage;
 import com.academy.paybridge.remittance.api.OutboundRemittanceRequest;
 import com.academy.paybridge.remittance.api.OutboundRemittanceView;
 import com.academy.paybridge.remittance.api.ProviderQuoteView;
@@ -26,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -177,15 +179,7 @@ public class OutboundRemittanceService implements OutboundRemittanceApi {
         ProviderQuote quote = quotes.findByQuoteId(request.quoteId())
                 .orElseThrow(() -> new ResourceNotFoundException("Quote not found: " + request.quoteId()));
         if (remittances.existsByQuoteId(quote.getQuoteId())) {
-            // A concurrent request with this key may already have claimed the quote.
-            var winner = remittances.findByIdempotencyKey(idempotencyKey);
-            if (winner.isPresent()) {
-                return replay(winner.get(), request);
-            }
-
-            // A different operation consumed the quote.
-            throw new IllegalStateException(
-                    "Quote has already been used: " + quote.getQuoteId());
+            throw new IllegalStateException("Quote has already been used: " + quote.getQuoteId());
         }
         if (quote.isExpired(Instant.now())) {
             throw new IllegalStateException("Quote has expired: " + quote.getQuoteId());
@@ -274,6 +268,13 @@ public class OutboundRemittanceService implements OutboundRemittanceApi {
     // ---------------------------------------------------------------- reads and reconciliation
 
     @Override
+    public String getQuoteAccountNumber(String quoteId) {
+        return quotes.findByQuoteId(quoteId)
+                .map(ProviderQuote::getSourceAccount)
+                .orElseThrow(() -> new ResourceNotFoundException("Quote not found: " + quoteId));
+    }
+
+    @Override
     public OutboundRemittanceView getByReference(String reference) {
         return reload(reference);
     }
@@ -307,29 +308,18 @@ public class OutboundRemittanceService implements OutboundRemittanceApi {
     @Override
     public OutboundRemittanceView markReturned(String reference, String reason) {
         OutboundRemittance r = remittances.findByReference(reference)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Outbound remittance not found: " + reference));
-
+                .orElseThrow(() -> new ResourceNotFoundException("Outbound remittance not found: " + reference));
         switch (r.getStatus()) {
-            case RETURNED -> {
-                // Idempotent retry: the refund has already been processed.
-                return toView(r);
-            }
+            case RETURNED -> throw new IllegalStateException(
+                    "Remittance " + reference + " has already been returned");
             case PENDING -> throw new IllegalStateException(
-                    "Remittance " + reference
-                            + " is still PENDING; reconcile it before reporting a return");
+                    "Remittance " + reference + " is still PENDING; reconcile it before reporting a return");
             case FAILED -> throw new IllegalStateException(
                     "Remittance " + reference + " already failed and was refunded");
-            default -> {
-                // COMPLETED: continue with the return.
-            }
+            default -> { /* COMPLETED: continue */ }
         }
-
-        String note = "Returned by provider"
-                + (reason == null || reason.isBlank() ? "" : ": " + reason.trim());
-
-        // The status change and refund are atomic. Only the request that
-        // changes COMPLETED -> RETURNED is allowed to post the refund.
+        String note = "Returned by provider" + (reason == null || reason.isBlank() ? "" : ": " + reason.trim());
+        // Status change and refund in one transaction, so it happens once even if the report is repeated or races.
         tx.executeWithoutResult(s -> {
             int won = remittances.transition(
                     reference,
@@ -338,10 +328,10 @@ public class OutboundRemittanceService implements OutboundRemittanceApi {
                     note
             );
 
-            if (won == 0) {
-                // Another request may have returned it first.
-                // Do not refund here; check the final status below.
-                return;
+            if (won != 1) {
+                throw new IllegalStateException(
+                        "Remittance " + reference
+                                + " is no longer COMPLETED; return was not processed");
             }
 
             ledger.post(
@@ -351,22 +341,9 @@ public class OutboundRemittanceService implements OutboundRemittanceApi {
                     reference + "-REV"
             );
         });
-
-        OutboundRemittanceView result = reload(reference);
-
-        if ("RETURNED".equals(result.status())) {
-            // Both the winning request and safe retries return the final result.
-            log.info("Outbound remittance {} is returned; refund processed once",
-                    reference);
-            return result;
-        }
-
-        // The status changed to something other than RETURNED, so this was
-        // not a successful duplicate return.
-        throw new IllegalStateException(
-                "Remittance " + reference + " is no longer eligible for return");
+        log.info("Outbound remittance {} returned by provider; {} refunded", reference, r.getSourceAmountMinor());
+        return reload(reference);
     }
-
 
     @Override
     public List<OutboundRemittanceView> list(String status) {
@@ -384,6 +361,24 @@ public class OutboundRemittanceService implements OutboundRemittanceApi {
             rows = remittances.findByStatusOrderByIdDesc(parsed, page);
         }
         return rows.stream().map(OutboundRemittanceService::toView).toList();
+    }
+
+    @Override
+    public OutboundRemittancePage listForAccount(String accountNumber, int page, int size) {
+        if (accountNumber == null || accountNumber.isBlank()) {
+            throw new IllegalArgumentException("accountNumber is required");
+        }
+        if (page < 0) {
+            throw new IllegalArgumentException("page must be >= 0");
+        }
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("size must be between 1 and 100");
+        }
+        var result = remittances.findBySourceAccount(accountNumber, PageRequest.of(page, size,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
+        return new OutboundRemittancePage(result.getContent().stream()
+                .map(OutboundRemittanceService::toView).toList(), page, size,
+                result.getTotalElements(), result.getTotalPages(), result.hasNext());
     }
 
     @Override

@@ -29,6 +29,9 @@ public interface OutboundRemittanceApi {
 
     OutboundRemittanceView getByReference(String reference);
 
+    /** The account number a stored quote was made for. Used to check the caller owns it before sending. */
+    String getQuoteAccountNumber(String quoteId);
+
     /** Asks the provider about a PENDING remittance and settles it if the answer is definite. */
     OutboundRemittanceView reconcile(String reference);
 
@@ -42,6 +45,9 @@ public interface OutboundRemittanceApi {
 
     /** Newest first, at most 100. A null or blank status means all. */
     List<OutboundRemittanceView> list(String status);
+
+    /** Account-scoped history. Callers must resolve and authorize the account through AccountAccess. */
+    OutboundRemittancePage listForAccount(String accountNumber, int page, int size);
 
     /** Reconciles every PENDING remittance older than the given age. Returns how many were settled. */
     int reconcilePending(long olderThanSeconds, int limit);

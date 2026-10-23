@@ -1,5 +1,6 @@
 package com.academy.paybridge.ledger.web;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.academy.paybridge.ledger.api.StatementPage;
 import com.academy.paybridge.ledger.service.StatementService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +24,7 @@ public class StatementController {
     }
 
     @GetMapping
+    @PreAuthorize("@accountAccess.canView(authentication, #accountNumber)")
     public StatementPage get(@PathVariable String accountNumber,
                              @RequestParam(required = false) Currency currency,
                              @RequestParam(required = false) String type,

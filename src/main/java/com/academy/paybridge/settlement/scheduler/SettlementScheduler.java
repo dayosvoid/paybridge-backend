@@ -13,7 +13,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import java.time.Duration;
 
 /**
- * Settles one batch per run. Fully automatic: no endpoint triggers it. A failed run changes nothing
+ * Settles one batch per scheduled run, using the same API as the manual admin trigger. A failed run changes nothing
  * (the batch is atomic), is logged at ERROR, and is simply tried again on the next tick.
  */
 @Configuration
